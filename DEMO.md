@@ -2,8 +2,8 @@
 
 ## Preparación
 
-- Instalá dependencias, dejá `AI_MODE=demo` y configurá el administrador con `npm run admin:setup`.
-- Ejecutá `npm start`. Abrí la home y el panel en pestañas separadas. Usá datos ficticios; no hace falta API key ni conexión a OpenAI.
+- Instalá dependencias, dejá `AI_MODE=demo` y configurá el administrador con `php scripts/admin.php`.
+- Ejecutá `php scripts/start.php`. Abrí la home y el panel en pestañas separadas. Usá datos ficticios; no hace falta API key ni conexión a OpenAI.
 - El modo demo está rotulado. Las conversaciones, tickets y métricas se guardan realmente en SQLite. No hay datos precargados ni métricas inventadas.
 - Si ya hiciste pruebas, las métricas serán acumuladas. Para una demostración aislada usá otro `DB_PATH` antes de iniciar y de configurar el administrador; no borres la base del negocio.
 
@@ -45,8 +45,8 @@ En el panel, mostrá las métricas y abrí el ticket de hardware. Se ven nombre,
 - OpenAI es un modo separado y requiere clave del servidor.
 - Una solicitud de turno no es un horario reservado.
 - Un diagnóstico preliminar no reemplaza la evaluación del técnico.
-- Recargar mantiene la conversación en la pestaña; reiniciar Node conserva los datos en SQLite.
+- Recargar mantiene la conversación en la pestaña; reiniciar PHP conserva los datos en SQLite.
 
 ## Capturas
 
-Al ejecutar `npm run test:browser` se generan capturas con datos ficticios en `docs/screenshots/desktop.png`, `mobile.png` y `admin.png`.
+Las capturas en `docs/screenshots/` muestran la interfaz. Para actualizar la demostración, capturá la home, el chat y el panel desde el servidor PHP, usando datos ficticios.

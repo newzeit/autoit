@@ -1,10 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-export function openDatabase(path = process.env.DB_PATH || './data/iturno.sqlite') {
-  if (path !== ':memory:') mkdirSync(dirname(resolve(path)), { recursive: true, mode: 0o700 });
-  const db = new DatabaseSync(path);
-  db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
+PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'Otros', status TEXT NOT NULL DEFAULT 'active', state TEXT NOT NULL DEFAULT '{}', mode TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id), role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS requests (conversation_id TEXT NOT NULL REFERENCES conversations(id), request_id TEXT NOT NULL, message TEXT NOT NULL, response TEXT, PRIMARY KEY(conversation_id, request_id));
@@ -15,11 +9,4 @@ export function openDatabase(path = process.env.DB_PATH || './data/iturno.sqlite
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS messages_conversation ON messages(conversation_id, id);
     CREATE INDEX IF NOT EXISTS tickets_status ON tickets(status, priority);
-  `);
-  return db;
-}
-export function transaction(db, fn) {
-  db.exec('BEGIN IMMEDIATE');
-  try { const result = fn(); db.exec('COMMIT'); return result; }
-  catch (error) { db.exec('ROLLBACK'); throw error; }
-}
+CREATE TABLE IF NOT EXISTS rate_limits (bucket TEXT PRIMARY KEY, hits INTEGER NOT NULL, expires_at INTEGER NOT NULL);

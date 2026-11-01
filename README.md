@@ -1,141 +1,172 @@
-# ITurno AI
+# ITurno AI · PHP
 
-Recepción virtual y soporte técnico para un negocio local de informática. Cada consulta queda registrada, las soluciones simples se confirman con el cliente y los problemas que requieren intervención humana se convierten en tickets con contexto.
+Recepción virtual para un servicio técnico informático: atención inmediata, soluciones simples confirmadas por el cliente y tickets con contexto para los técnicos.
 
-## Inicio rápido
+**Backend PHP 8.2+, SQLite y cURL. Frontend HTML5, CSS3 y JavaScript vanilla.** No requiere Node.js, npm, Composer, frameworks ni compilación.
 
-Requisitos: **Node.js 24 o superior**, npm y un directorio con permisos de escritura. Se usa `node:sqlite`, incluido en Node, sin compilar dependencias nativas.
+## Instalación local
+
+Requisitos: PHP 8.2 o superior con `pdo_sqlite`, `sqlite3`, `curl` y `mbstring`, y permisos de escritura en el directorio de datos.
 
 ```bash
-npm install
-cp .env.example .env
-npm run admin:setup
-npm start
+php scripts/check.php
+php scripts/install.php
+php scripts/admin.php
+php scripts/start.php
 ```
 
-Abrí **http://127.0.0.1:3000**. El panel está en **/admin.html**. El asistente funciona inmediatamente en demo, incluso si todavía no configuraste el administrador. No hay usuario con contraseña predeterminada: el comando de setup pide una contraseña oculta de al menos 12 caracteres y guarda únicamente su hash scrypt. Reiniciá el servidor después de configurarlo.
+Abrí **http://127.0.0.1:3000** y **/admin.html** para el panel. El instalador crea `.env` solo si no existe e inicializa SQLite. El asistente funciona sin configurar administrador; el panel necesita el alta interactiva, con contraseña oculta. No hay contraseña predeterminada. El servidor incorporado de PHP sirve para desarrollo y demostración; en producción usá Apache y PHP-FPM.
 
-Alternativa: `bash scripts/install.sh` instala desde el lockfile y crea `.env` solo si no existe. El directorio del proyecto debe ser escribible por quien lo ejecuta. No requiere root.
+También podés iniciar directamente:
+
+```bash
+php -S 127.0.0.1:3000 -t public router.php
+```
+
+## Migración desde la versión anterior
+
+Se mantiene el esquema de SQLite y las rutas API; los clientes, conversaciones, tickets, códigos e historiales existentes siguen siendo compatibles. No se borran ni recrean las tablas. La migración agrega una tabla de límites de solicitudes y un directorio privado de bloqueos.
+
+1. Detené el servidor anterior para evitar escritores simultáneos de versiones distintas.
+2. Conservá el archivo SQLite y `.env`. Hacé backup antes de actualizar: `php scripts/backup.php`.
+3. En `.env` usá `APP_ENV=development` para HTTP local o `APP_ENV=production` para HTTPS. La configuración antigua `NODE_ENV` ya no se usa; podés retirarla junto con `TRUST_PROXY`.
+4. Ejecutá `php scripts/admin.php`: el hash scrypt de la versión anterior requiere volver a configurar la contraseña con el formato seguro de PHP. El comando invalida las sesiones existentes y preserva las otras variables.
+5. Ejecutá las pruebas y arrancá PHP. En Apache, reemplazá el proxy al antiguo servicio por un DocumentRoot dirigido a `public/` y un manejador PHP-FPM.
+
+El backup previo realizado durante esta migración quedó en `backups/`, excluido de Git. No se modificó la configuración administrativa ni se restableció una contraseña sin tu intervención.
 
 ## Funcionalidades
 
-- Chat adaptable a móviles, contexto persistente, respuestas sugeridas, indicador de espera, reintentos y nueva conversación.
-- Modo demo explícito: audio, falla de encendido y presupuesto para SSD.
-- OpenAI desde el servidor, salida estructurada, clasificación en diez categorías, diagnóstico preliminar, resumen, prioridad y derivación.
-- Soluciones sugeridas diferenciadas de confirmaciones explícitas. Resolver por IA no crea ticket.
-- Formulario de derivación con nombre, teléfono/email, equipo, descripción y consentimiento. Al enviarlo, el ticket se crea automáticamente con la conversación adjunta.
-- Ticket único por conversación y mensajes idempotentes por `requestId`.
-- Seguimiento por código aleatorio y contacto registrado. Solo expone estado, categoría, fechas y cambios de estado, sin nombres, contactos ni notas internas.
-- Dashboard autenticado: seis métricas, búsqueda, filtros, estados, prioridades, notas internas, historial y motivos frecuentes.
-- Modo claro predeterminado y oscuro opcional. Sin fuentes, scripts ni recursos externos en el frontend.
+- Chat con contexto persistente, respuestas sugeridas, indicador de espera, reintento y recuperación al recargar.
+- Modo demo explícito: falta de sonido, equipo que no enciende y presupuesto de SSD.
+- OpenAI desde PHP mediante cURL, diagnóstico, diez categorías, resúmenes, prioridades y derivación.
+- Soluciones sugeridas diferenciadas de confirmaciones. Una solución confirmada no genera ticket.
+- Derivación mediante formulario validado, consentimiento y ticket automático con conversación adjunta.
+- Un ticket por conversación y mensajes idempotentes por `requestId`; bloqueos compartidos entre procesos PHP del mismo servidor.
+- Seguimiento privado mediante código aleatorio y contacto registrado, sin exposición de notas internas ni datos personales.
+- Dashboard con autenticación, seis métricas, búsqueda, filtros, estados, prioridades, notas e historial.
+- Diseño adaptable, modo claro predeterminado y oscuro opcional. Frontend sin peticiones a CDNs ni fuentes externas.
 
 ## Arquitectura
 
-Frontend: HTML5, CSS3 y módulos de JavaScript **vanilla**, sin framework ni compilación. Node.js se usa para el backend y herramientas de desarrollo; Playwright es únicamente una herramienta de pruebas.
-
-Backend: Express 5, API REST y SQLite en `data/iturno.sqlite`. Las tablas de conversaciones, mensajes, clientes, solicitudes idempotentes, tickets, eventos, soluciones y sesiones son persistentes. SQL parametrizado, transacciones para operaciones compuestas y WAL. Se recomienda **un proceso Node**, almacenamiento local persistente y un VPS; no usar SQLite en sistemas de archivos de red o disco efímero.
-
 ```text
-server.js                  API, autorización y coordinación de operaciones
-src/db/index.js            esquema e inicialización SQLite
-src/services/ai.js         Responses API y validación de respuesta
-src/services/demo-ai.js    escenarios demo deterministas
-src/security.js            tokens, hash scrypt y sesiones
-public/                    HTML, CSS y JS vanilla
-scripts/                   administrador, instalación, backup, actualización
-deploy/                    ejemplos systemd y Apache
-test/                      pruebas automáticas de API
+public/index.html          atención al cliente
+public/admin.html          panel administrativo
+public/index.php           entrada HTTP de la API
+public/.htaccess           rutas y cabeceras Apache
+public/css/                estilos
+public/js/                 módulos vanilla del navegador
+router.php                 enrutador del servidor de desarrollo PHP
+src/php/bootstrap.php      configuración, validación y utilidades
+src/php/Application.php    API, autorización y lógica de negocio
+src/php/Database.php       SQLite, transacciones y bloqueos
+src/php/schema.sql         esquema compatible con los datos existentes
+src/php/DemoAI.php          escenarios guiados
+src/php/AI.php              integración OpenAI y validación
+src/php/support-prompt.txt  instrucciones de soporte
+scripts/                   instalación, administrador, backup, actualización
+test/                      pruebas PHP
+deploy/apache.conf         ejemplo de despliegue
 ```
 
-La IA solo propone una acción. El backend comprueba el estado previo, la confirmación explícita y los datos requeridos antes de registrar una resolución o crear un ticket. Los datos de contacto se ingresan en un formulario y no se envían a OpenAI como parte del chat, salvo que el propio cliente los escriba en mensajes.
+SQLite usa WAL, claves foráneas y SQL parametrizado. Las operaciones compuestas usan transacciones. El acceso a OpenAI no mantiene una transacción de escritura abierta. Los bloqueos con `flock` coordinan workers PHP-FPM sobre el mismo disco local. No usar esta arquitectura con múltiples servidores, discos efímeros ni archivos compartidos por red sin cambiar la coordinación y persistencia.
+
+La IA solo propone acciones; el backend valida datos, estado y confirmación antes de cerrar casos o crear tickets. Los datos de contacto del formulario no se envían a OpenAI, salvo que el cliente los escriba por su cuenta en el chat.
 
 ## Configuración
 
+`.env` se lee desde PHP, sin interpolar variables ni expandir los `$` de los hashes. Las variables de entorno del proceso tienen precedencia. Nunca ubiques `.env`, SQLite o backups dentro de `public/`.
+
 | Variable | Uso |
 | --- | --- |
-| `PORT` | Puerto, 3000 por defecto |
-| `HOST` | Dirección de escucha, 127.0.0.1 por defecto; para dispositivos de la red usar 0.0.0.0 en una red de confianza |
-| `AI_MODE` | `demo` por defecto, o `openai` |
-| `OPENAI_API_KEY` | Clave privada, solo servidor |
-| `OPENAI_MODEL` | Modelo configurable, ejemplo `gpt-4o-mini`; debe admitir salida estructurada |
-| `AI_TIMEOUT_MS` | Tiempo máximo de respuesta, 25000 ms |
-| `DB_PATH` | Archivo SQLite, `./data/iturno.sqlite` |
-| `ADMIN_USER` / `ADMIN_PASSWORD_HASH` | Configurados por `npm run admin:setup` |
-| `NODE_ENV` | `production` activa cookies Secure, requiere HTTPS para el panel |
-| `TRUST_PROXY` | `1` solo con proxy de confianza en loopback |
-| `BACKUP_DIR` | Directorio opcional para backups |
+| `APP_ENV` | `development` para HTTP local; `production` activa cookies Secure y requiere HTTPS |
+| `HOST`, `PORT` | Servidor local de desarrollo: 127.0.0.1 y 3000 |
+| `AI_MODE` | `demo` por defecto o `openai` |
+| `OPENAI_API_KEY` | Clave privada del servidor |
+| `OPENAI_MODEL` | Modelo con salida estructurada, ejemplo configurable `gpt-4o-mini` |
+| `AI_TIMEOUT_MS` | Timeout del proveedor, por defecto 25000 ms, máximo 60000 |
+| `DB_PATH` | SQLite, `./data/iturno.sqlite` por defecto |
+| `BACKUP_DIR` | `./backups` por defecto |
+| `ADMIN_USER`, `ADMIN_PASSWORD_HASH` | Generados por `php scripts/admin.php` |
 
-La aplicación carga `.env` mediante la funcionalidad nativa de Node. `.env`, bases, backups y credenciales no se incluyen en Git. Cambiar la contraseña con `npm run admin:setup` invalida las sesiones guardadas y requiere reinicio.
+Las rutas relativas se resuelven desde la raíz del proyecto, incluso si un comando se ejecuta desde otro directorio. El alta administrativa guarda un hash Argon2id si está disponible, con bcrypt como alternativa, y deja `.env` con permisos 600. La contraseña se pide oculta en una terminal Linux/macOS, entre 12 y 72 bytes. Cambiarla invalida las sesiones.
 
-## Demo sin API key
+## Modo demo
 
-Con `AI_MODE=demo` no se hacen llamadas a OpenAI. Una banda visible identifica la simulación y los tickets y conversaciones son reales. Desde las tarjetas o botones del chat podés probar:
+`AI_MODE=demo` no realiza llamadas externas. La interfaz indica que las respuestas son simuladas y que los registros son reales.
 
-1. «Mi computadora no tiene sonido» → «Windows 11» → «Sí, ya funciona». Queda resolución confirmada sin ticket.
-2. Nueva conversación → «Mi equipo no enciende» → «No enciende ninguna luz» → completar datos. Queda un ticket de hardware.
-3. Nueva conversación → «Quiero mejorar el rendimiento de mi computadora» → «Notebook» → completar datos. Queda una solicitud de presupuesto.
+1. «No tengo sonido» → «Windows 11» → «Sí, ya funciona»: resolución confirmada sin ticket.
+2. Nueva conversación → «Mi equipo no enciende» → «No enciende ninguna luz»: derivación; completar datos y registrar ticket.
+3. Nueva conversación → «Quiero mejorar el rendimiento de mi computadora» → «Notebook»: solicitud de presupuesto de SSD.
 
-El signo `+` inicia otra consulta. La conversación activa se recupera al recargar en la misma pestaña mediante un token en `sessionStorage`. Al cerrar la pestaña se pierde ese acceso local; el historial del negocio permanece y el código más contacto permite seguir el ticket. Ver [DEMO.md](DEMO.md).
+El botón `+` inicia una consulta nueva. `sessionStorage` conserva el token de la conversación en esa pestaña. Si se cierra, se pierde ese acceso local, pero el historial del negocio sigue guardado y el ticket se puede seguir mediante código/contacto. Ver [DEMO.md](DEMO.md).
 
 ## OpenAI
 
-Configurá `AI_MODE=openai` y `OPENAI_API_KEY` en `.env`, elegí un modelo habilitado en tu cuenta y reiniciá. Si falta la clave, el arranque falla con un mensaje claro; no se simula silenciosamente una respuesta real. La integración usa Responses API con JSON Schema estricto y `store:false`, según la [documentación oficial de Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs). La validación local también controla enums y longitudes.
+Configurá `AI_MODE=openai` y la clave en `.env`. El backend usa la Responses API con `store:false`, contexto de conversación y JSON Schema estricto conforme a la [documentación oficial de OpenAI](https://developers.openai.com/api/docs/guides/structured-outputs). PHP valida también las categorías, acciones y longitudes.
 
-El historial completo se reenvía para conservar contexto (hasta 50 turnos). Se establece un timeout y se gestionan errores, respuestas incompletas y rechazos. Ante un fallo, el mensaje del cliente sigue guardado y se puede reintentar con el mismo identificador. No se crean tickets desde texto libre del modelo, ni existen herramientas que puedan ejecutar comandos. Los diagnósticos son orientativos y los turnos y precios requieren confirmación humana.
+La URL de OpenAI es fija y solo se llama desde el servidor, con verificación TLS de cURL activa y timeout. Se gestionan errores HTTP, salidas incompletas, JSON inválido y rechazos. Ante un error, el mensaje del cliente permanece registrado para reintentarlo con el mismo identificador. No hay cambio silencioso a demo si falla OpenAI o falta la clave.
 
-## API
+Se conservan hasta 50 turnos. El asistente no tiene herramientas para ejecutar SQL, comandos o acciones administrativas. Los diagnósticos son preliminares; precios, compatibilidad y horarios requieren confirmación humana.
 
-Todas las mutaciones requieren JSON y cabecera `X-Requested-With: ITurno`. No se habilita CORS; las solicitudes con Origin deben provenir del mismo origen. La conversación necesita `Authorization: Bearer <accessToken>`; el token se entrega solo al crearla. Las sesiones administrativas se manejan con cookie HttpOnly/SameSite=Strict y expiran a las ocho horas.
+## API y seguridad
 
-| Endpoint | Acceso / función |
+Las rutas conservan el contrato del frontend. Las mutaciones requieren JSON y `X-Requested-With: ITurno`. Se verifica Origin si está presente, no se habilita CORS y las sesiones usan cookies HttpOnly, SameSite=Strict y Secure en producción. Los tokens se almacenan como SHA-256; la expiración de sesión es de ocho horas.
+
+| Endpoint | Función / acceso |
 | --- | --- |
-| `GET /api/health`, `GET /api/config` | Público, estado y configuración no sensible |
-| `POST /api/conversations` | Crea conversación y devuelve token |
+| `GET /api/health`, `GET /api/config` | Salud y configuración pública no sensible |
+| `POST /api/conversations` | Crear conversación y token |
 | `GET /api/conversations/:id` | Token propietario |
-| `POST /api/chat` | Token; `conversationId`, `requestId` UUID y `message` |
-| `POST /api/tickets` | Token; derivación previa, datos validados y `consent:true` |
+| `POST /api/chat` | Token; `conversationId`, `requestId` UUID, `message` |
+| `POST /api/tickets` | Token, derivación previa, datos validados y `consent:true` |
 | `GET /api/tickets/:id` | Token de la conversación propietaria |
-| `POST /api/tracking` | Código y contacto, resultado reducido |
+| `POST /api/tracking` | Código y contacto; resultado limitado a estado, categoría, fechas y cambios de estado |
 | `POST /api/admin/login` | Usuario y contraseña |
 | `GET /api/admin/me`, `POST /api/admin/logout` | Sesión administrativa |
-| `GET /api/admin/stats` | Métricas y categorías frecuentes |
-| `GET /api/admin/tickets` | Filtros `status`, `priority`, `q`; últimos 200 resultados |
-| `GET /api/admin/tickets/:id` | Detalles, mensajes y eventos |
+| `GET /api/admin/stats` | Métricas |
+| `GET /api/admin/tickets` | Filtros `status`, `priority`, `q`; últimos 200 |
+| `GET /api/admin/tickets/:id` | Detalle, eventos y conversación |
 | `PATCH /api/admin/tickets/:id` | `status`, `priority`, `note` opcionales |
 | `GET /api/admin/conversations` | `kind=all|resolved|suggested|human`; últimas 200 |
-| `GET /api/admin/conversations/:id` | Historial completo autorizado |
+| `GET /api/admin/conversations/:id` | Conversación completa |
 
-Los límites son por IP y se mantienen en memoria: 120 solicitudes/minuto generales, 20/minuto para conversaciones/chat/tickets y 10/15 minutos para login o seguimiento. Los mensajes admiten hasta 2000 caracteres; el JSON, 16 KB. Los tokens se guardan hasheados en SQLite. Los mensajes se muestran mediante `textContent`, protegidos además por CSP y Helmet.
+Límites persistentes por IP: 120 solicitudes/minuto generales, 20/minuto para creación/chat/tickets y 10/15 minutos para login/seguimiento. Se guarda un hash del identificador de límite, no la IP en texto. El JSON admite 16 KB y el mensaje 2000 caracteres. CSP, cabeceras defensivas y renderizado con `textContent` reducen XSS. No publicar la raíz del proyecto como DocumentRoot.
 
-## Pruebas
+## Pruebas sin dependencias
 
 ```bash
-npm test
-npm run test:browser
+php test/run.php
+php test/http.php
 ```
 
-La segunda orden requiere instalar Chromium con `npx playwright install chromium`. Las pruebas usan bases temporales y credenciales generadas, sin tocar los datos del negocio. Ver alcance, resultados y comprobaciones manuales en [TESTING.md](TESTING.md).
+La primera suite prueba negocio, seguridad, persistencia, bloqueo entre instancias, adaptador OpenAI y backup. La segunda inicia un servidor PHP temporal y prueba la API HTTP real y los archivos públicos/privados. No usan la base del negocio ni hacen llamadas externas. Ver [TESTING.md](TESTING.md).
 
-## Despliegue en VPS Linux
+## Apache, PHP-FPM y HTTPS
 
-No se aplicaron cambios a ningún VPS. Los archivos en `deploy/` son ejemplos para adaptar a la distribución y las rutas reales.
+1. Instalá PHP 8.2+, las extensiones requeridas y Apache/PHP-FPM según tu distribución. `php scripts/check.php` verifica CLI; verificá también las extensiones de PHP-FPM, que puede cargar otro `php.ini`.
+2. Copiá el proyecto a `/opt/iturno-ai`. Ejecutá instalación y alta de administrador. El usuario de PHP-FPM necesita leer la aplicación y escribir en `data/` y `backups/`, sin permisos de escritura generales sobre el código. `.env` debe ser legible solo por el propietario o el grupo de servicio apropiado; ajustá su propiedad al servicio.
+3. Adaptá `deploy/apache.conf`: dominio, rutas, logs y socket PHP-FPM real. En Debian/Ubuntu suele ser `/run/php/php8.x-fpm.sock`; en Fedora/RHEL puede ser `/run/php-fpm/www.sock`. Activá `rewrite`, `headers`, `proxy` y `proxy_fcgi` según corresponda. Si usás mod_php, reemplazá el bloque SetHandler por la configuración de tu distribución.
+4. El DocumentRoot debe ser **/opt/iturno-ai/public**, con `.htaccess` habilitado. No hace falta un servicio de aplicación persistente ni un proxy al puerto 3000.
+5. Ejecutá el comprobador de Apache, habilitá el sitio y recargá. En servidores SELinux, ajustá contextos para lectura/escritura y conexiones salientes HTTPS de PHP usando la política de la distribución.
+6. Configurá DNS y puertos 80/443. Instalá Certbot para Apache, emití certificado para tu dominio, conservá las reglas de DocumentRoot/PHP en el bloque TLS y activá redirección a HTTPS. Verificá renovación con `certbot renew --dry-run`.
+7. Usá `APP_ENV=production` y comprobá login, ticket y seguimiento desde HTTPS. Si hay un proxy TLS adicional, configurá HTTPS en Apache/FPM desde una fuente de confianza; la aplicación no confía ciegamente en `X-Forwarded-Proto`.
 
-1. Instalá Node.js 24 o superior y Apache con módulos de proxy y TLS usando el método adecuado para tu distribución. Comprobá `node -v` y `command -v node`.
-2. Creá un usuario de servicio sin privilegios `iturno`, copiá el proyecto a `/opt/iturno-ai` y asignale permisos. Ejecutá instalación y setup del administrador como ese usuario. Creá `data/` y `backups/`, ambos privados y escribibles por el servicio.
-3. En `.env`: `HOST=127.0.0.1`, `PORT=3000`, `TRUST_PROXY=1`, `NODE_ENV=production`. El panel requiere HTTPS con esta configuración. Mantené `.env` con modo 600. Nunca publiques el puerto 3000 en el firewall.
-4. Adaptá `deploy/iturno.service`, especialmente `ExecStart` al binario de Node real. Copialo a `/etc/systemd/system/iturno.service`. Luego `sudo systemctl daemon-reload` y `sudo systemctl enable --now iturno`. Revisá `journalctl -u iturno` y `/api/health`.
-5. Adaptá `deploy/apache.conf` con el dominio real. En Debian/Ubuntu, activá `proxy`, `proxy_http`, `headers` y `ssl` con `a2enmod`; habilitá el sitio con `a2ensite`. En otras distribuciones ajustá módulos, rutas y logs. Ejecutá el comprobador de configuración de Apache antes de recargar.
-6. Apuntá el DNS al VPS y abrí 80/443. Instalá Certbot con el método de tu distribución y emití un certificado para tu dominio (`certbot --apache -d TU_DOMINIO`), activando redirección HTTP a HTTPS. El bloque TLS debe establecer `X-Forwarded-Proto: https` y mantener las reglas de proxy. Verificá renovación con `certbot renew --dry-run`.
-7. Probá login, creación de ticket y seguimiento desde HTTPS. Apache debe reemplazar `X-Forwarded-Proto`, no confiar en el valor del cliente. Si SELinux bloquea conexiones del proxy, configurá la política correspondiente a tu distribución.
+No se instaló Apache ni se modificó ningún VPS durante la migración.
 
-## Actualización y backup
+## Backup y actualización
 
-`npm run backup` usa la API de backup de SQLite y produce una copia consistente incluso con WAL activo. No copies solo el `.sqlite` mientras hay escrituras. Guardá copias fuera del VPS con acceso restringido y probá restauraciones periódicamente.
+```bash
+php scripts/backup.php
+php scripts/update.php
+```
 
-Después de revisar y descargar una nueva versión, ejecutá `bash scripts/update.sh`. Crea backup, instala dependencias del lockfile y corre pruebas; conserva `.env` y datos. Luego reiniciá el servicio y comprobá salud y flujos. No realiza `git pull` ni reinicios con privilegios automáticamente.
+El backup usa la API [SQLite3::backup de PHP](https://www.php.net/manual/en/sqlite3.backup.php), compatible con WAL activo, valida integridad y genera un archivo privado. No copies solo `.sqlite` mientras hay escrituras. Programá copias fuera del VPS con acceso restringido.
 
-Para restaurar: detené el servicio, conservá una copia del estado actual, reemplazá el archivo configurado por un backup validado y retirá los archivos WAL/SHM antiguos únicamente con el servicio detenido. Ajustá propietario/permisos e iniciá. Verificá `PRAGMA integrity_check` con SQLite y probá el panel. No reemplaces una base en uso.
+Después de revisar y descargar una versión nueva, el script de actualización hace backup y corre la suite PHP. No modifica Git, `.env` ni reinicia servicios con privilegios. Si usás OPcache, recargá PHP-FPM tras actualizar y comprobá `/api/health`.
 
-## Alcance del MVP
+Para restaurar: detené el acceso a la aplicación y sus workers, conservá el estado actual, reemplazá SQLite con un backup validado y retirás WAL/SHM antiguos solo con todos los escritores detenidos. Revisá propietario/permisos y `PRAGMA integrity_check` antes de volver a habilitar el sitio. No reemplaces una base en uso.
 
-No incluye conexión directa a WhatsApp, notificaciones por email/SMS, calendario con cupos, cobros ni múltiples roles administrativos. Registra solicitudes de turno, pero el horario se coordina con un humano. La política de retención de datos y la operación de backups se deben definir para el negocio antes de usar datos reales. Las métricas no son promesas de ahorro: se calculan sobre registros reales de esta instalación.
+## Alcance
+
+No incluye WhatsApp, notificaciones, agenda con cupos, cobros ni múltiples roles. Los pedidos de turno requieren coordinación humana. Las métricas se calculan sobre esta instalación; no son promesas de ahorro. Antes de usar datos reales, definí retención y operación de backups para el negocio.
